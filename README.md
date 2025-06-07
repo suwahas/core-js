@@ -131,29 +131,32 @@ J(event.target).closest('.list-item').remove();
 
 All DOM insertion methods in Core JS are highly optimized. When you provide multiple elements to insert, they automatically use a `DocumentFragment` to batch the DOM updates into a single operation, resulting in significantly better performance for list rendering.
 
+
+
 #### `append(content)`
 Inserts content to the end of each element in the set.
-*   **`content`** (String | Node | Node[] | `J` instance): Content to insert.
+*   **`content`** (String | Node | `J` instance): Content to insert.
 ```javascript
-const newItems = ['<li>Apple</li>', '<li>Orange</li>'];
-// This is highly optimized, even though it looks simple:
-J('#fruit-list').append(newItems.join(''));
+J('#list').append('<li>New final item</li>');
 ```
 
 #### `prepend(content)`
 Inserts content to the beginning of each element in the set.
+*   **`content`** (String | Node | `J` instance): Content to insert.
 ```javascript
-J('#task-list').prepend('<div class="list-header">Today\'s Tasks</div>');
+J('#list').prepend('<li>New first item</li>');
 ```
 
 #### `before(content)`
 Inserts content before each element in the set.
+*   **`content`** (String | Node | `J` instance): Content to insert.
 ```javascript
-J('.post').before('<hr>');
+J('.post').before('<hr class="post-divider">');
 ```
 
 #### `after(content)`
 Inserts content after each element in the set.
+*   **`content`** (String | Node | `J` instance): Content to insert.
 ```javascript
 J('.post-title').after('<p class="author">By Core JS</p>');
 ```
@@ -161,22 +164,25 @@ J('.post-title').after('<p class="author">By Core JS</p>');
 #### `clone()`
 Creates a deep copy of the set of matched elements.
 *   **Returns**: A new `J` instance containing the cloned elements.
+```html
+<div class="card-template" style="display:none;"><h2>Card Title</h2></div>
+```
 ```javascript
-const template = J('#item-template').clone();
-template.removeClass('template').text('New Item');
-J('#container').append(template);
+const newCard = J('.card-template').clone();
+newCard.removeClass('card-template').css('display', 'block');
+J('#container').append(newCard);
 ```
 
 #### `remove()`
 Removes the elements from the DOM.
 ```javascript
-J('.old-banner').remove();
+J('.temporary-message').remove();
 ```
 
 #### `empty()`
 Removes all child nodes from the set of matched elements.
 ```javascript
-J('#search-results').empty();
+J('#results').empty();
 ```
 
 #### `html([htmlString])`
@@ -185,7 +191,7 @@ Gets the HTML contents of the first element, or sets the HTML contents of every 
 // Get
 const content = J('#main').html();
 // Set
-J('#main').html('<h2>New Content</h2>');
+J('#main').html('<h2>New Title</h2><p>New content.</p>');
 ```
 
 #### `text([textString])`
@@ -194,46 +200,58 @@ Gets the combined text contents of elements, or sets the text content of every e
 // Get
 const headerText = J('h1').text();
 // Set
-J('h1').text('Welcome to Core JS');
+J('h1').text('A Simpler Title');
 ```
 
 ---
 ### CSS, Attributes & Data
 
 #### `addClass(classNames)`
-Adds one or more space-separated classes.
+Adds one or more space-separated classes to each element.
 ```javascript
 J('.card').addClass('active highlighted');
 ```
 
 #### `removeClass(classNames)`
-Removes one or more space-separated classes.
+Removes one or more space-separated classes from each element.
 ```javascript
 J('.card').removeClass('disabled');
 ```
 
 #### `toggleClass(classNames)`
-Toggles one or more space-separated classes.
+Toggles one or more space-separated classes for each element.
 ```javascript
 J('#nav').toggleClass('is-open');
 ```
 
 #### `attr(name, [value])`
-Gets an attribute value, or sets an attribute.
+Gets an attribute value, or sets an attribute for every element.
 ```javascript
+// Get
+const linkUrl = J('a').attr('href');
+// Set
 J('img').attr('alt', 'A descriptive image caption');
 ```
 
 #### `css(prop, [value])`
 Gets a computed style property, or sets one or more CSS properties.
 ```javascript
+// Get
+const fontSize = J('p').css('font-size');
+// Set multiple
 J('.box').css({ backgroundColor: '#f0f0f0', padding: '1rem' });
 ```
 
 #### `data(key, [value])`
 Gets or sets a `data-*` attribute value. Use camelCase for keys (e.g., `userId` for `data-user-id`).
+```html
+<div id="user" data-user-id="123"></div>
+```
 ```javascript
-const userId = J('#user-profile').data('userId');
+// Get
+const userId = J('#user').data('userId'); // "123"
+// Set
+J('#user').data('lastLogin', '2023-10-28'); // Sets data-last-login
 ```
 
 ---
@@ -241,24 +259,37 @@ const userId = J('#user-profile').data('userId');
 
 #### `on(eventType, [selector], handler)`
 Attaches an event handler for direct or delegated events.
+*   **`eventType`** (String): An event name like `click`.
+*   **`selector`** (String, optional): A selector for event delegation.
+*   **`handler`** (Function): The function to execute.
 ```javascript
 // Direct event
 J('.save-button').on('click', () => console.log('Saved!'));
-// Delegated event (more performant for lists)
-J('#task-list').on('click', '.delete-btn', function() {
+// Delegated event
+J('#user-list').on('click', '.delete-btn', function() {
   J(this).closest('li').remove();
 });
 ```
 
 #### `off(eventType, [handler])`
-Removes an event handler.
+Removes an event handler. If `handler` is omitted, all handlers for that event type are removed.
 ```javascript
-J('.btn').off('click'); // Removes all click handlers
+function onFirstClick() { /* ... */ }
+J('.btn').on('click', onFirstClick);
+// Remove a specific handler
+J('.btn').off('click', onFirstClick);
+// Remove all click handlers
+J('.btn').off('click');
 ```
 
 #### `trigger(eventType, [data])`
 Programmatically executes all handlers for a given event. Use `event.detail` to access passed `data`.
 ```javascript
+// Listen for a custom event
+J(document).on('user:login', (e) => {
+    console.log(`User ${e.detail.username} logged in!`);
+});
+// Trigger it from somewhere else
 J(document).trigger('user:login', { username: 'Alex' });
 ```
 
@@ -267,10 +298,19 @@ J(document).trigger('user:login', { username: 'Alex' });
 
 #### `serialize()`
 Encodes a set of form elements as a string for submission.
-*   **Returns**: (String) A URL-encoded string.
+*   **Returns**: (String) A URL-encoded string (e.g., `name=value&other=value2`).
+```html
+<form id="register-form">
+    <input type="text" name="username" value="Alex">
+    <input type="email" name="email" value="alex@example.com">
+</form>
+```
 ```javascript
-const formData = J('#register-form').serialize();
-// formData -> "username=Alex&email=alex%40example.com"
+J('#register-form').on('submit', function(e) {
+  e.preventDefault();
+  const formData = J(this).serialize(); // "username=Alex&email=alex%40example.com"
+  console.log(formData);
+});
 ```
 
 ---
@@ -280,12 +320,31 @@ All AJAX methods return a native Promise for easy chaining with `.then()`/`.catc
 
 #### `J.ajax(options)`
 Performs a customizable AJAX request.
+```javascript
+J.ajax({
+  url: 'https://api.example.com/data',
+  method: 'POST',
+  data: { id: 1, name: 'Core JS' },
+  headers: { 'X-CUSTOM-HEADER': 'MyValue' }
+})
+.then(response => console.log(response))
+.catch(error => console.error(error));
+```
 
-#### `J.get(url, [data])`
+#### `J.get(url, [data], [success])`
 A shortcut for a GET request.
+```javascript
+J.get('https://api.example.com/posts', { category: 'news' })
+  .then(posts => console.log('Fetched posts:', posts));
+```
 
-#### `J.post(url, [data])`
+#### `J.post(url, [data], [success])`
 A shortcut for a POST request.
+```javascript
+const newUser = { name: 'Jane Doe', email: 'jane@example.com' };
+J.post('https://api.example.com/users', newUser)
+  .then(response => console.log('User created:', response));
+```
 
 ---
 ### Utilities
@@ -294,15 +353,69 @@ A shortcut for a POST request.
 Executes a function when the DOM is fully loaded and parsed.
 ```javascript
 J.ready(() => {
-  console.log('Document is ready! Let\'s go!');
+  console.log('Document is ready!');
 });
 ```
 
 #### `each(callback)`
-Iterates over the set of matched elements.
+Iterates over the set of matched elements, executing a function for each one.
 ```javascript
 J('li').each(function(index, element) {
-  J(this).text(`Item #${index + 1}`);
+  console.log(`Item ${index}: ${J(this).text()}`);
+});
+```
+
+---
+## Complete Example: Fetch and Display Data
+
+This example demonstrates how to use several library features together.
+
+### HTML
+
+```html
+<h1>User List</h1>
+<button id="load-users">Load Users</button>
+<ul id="user-list"></ul>
+```
+
+### JavaScript (`my-app.js`)
+
+```javascript
+J.ready(() => {
+    const userList = J('#user-list');
+    const loadButton = J('#load-users');
+
+    loadButton.on('click', async function() {
+        // Disable the button and show a loading message
+        J(this).attr('disabled', true).text('Loading...');
+
+        try {
+            const users = await J.get('https://jsonplaceholder.typicode.com/users');
+            
+            // Clear any existing list items before adding new ones
+            userList.empty();
+
+            // Iterate and append users
+            users.forEach(user => {
+                const listItem = J(`
+                    <li>
+                        <strong>${user.name}</strong> (${user.email})
+                        <p>Website: ${user.website}</p>
+                    </li>
+                `);
+                userList.append(listItem);
+            });
+
+            // We are done, so remove the button
+            loadButton.remove();
+
+        } catch (err) {
+            userList.html('<li>Error loading users. Please try again.</li>');
+            console.error('AJAX Error:', err);
+            // Re-enable the button in case of an error
+            loadButton.attr('disabled', null).text('Load Users');
+        }
+    });
 });
 ```
 
@@ -328,51 +441,6 @@ J('.special').myPlugin({ color: 'purple' });
 For a complete, real-world example of this pattern, see the documentation for our official **Core Select** plugin, a powerful, modern select box replacement.
 
 ---
-## Complete Example: Fetch and Display Data
-
-This example demonstrates how to use several library features together to fetch a list of users and display them on the page.
-
-### HTML
-
-```html
-<h1>User List</h1>
-<button id="load-users">Load Users</button>
-<div id="user-list"></div>
-```
-
-### JavaScript
-
-```javascript
-J.ready(() => {
-    const userList = J('#user-list');
-    const loadButton = J('#load-users');
-
-    loadButton.on('click', async function() {
-        J(this).attr('disabled', true).text('Loading...');
-
-        try {
-            const users = await J.get('https://jsonplaceholder.typicode.com/users');
-            
-            userList.empty();
-
-            // Create an array of HTML strings
-            const userHtml = users.map(user => `
-                <div class="user-card">
-                    <strong>${user.name}</strong> (${user.email})
-                </div>
-            `);
-            
-            // Append all users at once with our optimized .append() method
-            userList.append(userHtml.join(''));
-
-            loadButton.remove();
-        } catch (err) {
-            userList.html('<p class="error">Error loading users. Please try again.</p>');
-            J(this).attr('disabled', null).text('Load Users');
-        }
-    });
-});
-```
 
 ## License
 
