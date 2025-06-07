@@ -230,6 +230,25 @@
       });
     },
 
+     appendTo: function (target) {
+      const targets = J(target);
+      const sourceNodes = this;
+
+      if (!targets.length || !sourceNodes.length) {
+        return this;
+      }
+
+      targets.each(function() {
+        const fragment = document.createDocumentFragment();
+        sourceNodes.each(function() {
+          fragment.appendChild(this.cloneNode(true));
+        });
+        this.appendChild(fragment);
+      });
+
+      return sourceNodes;
+    },
+
     prepend: function (content) {
       const nodesToPrepend = _createNodesFromContent(content);
       if (nodesToPrepend.length === 0) return this;
