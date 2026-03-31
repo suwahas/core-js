@@ -3,7 +3,7 @@
  * A lightweight, modern, and dependency-free JavaScript library that provides
  * a familiar jQuery-like API for DOM manipulation, events, and AJAX.
  *
- * @version 2.0 (Elementor & WP Production Ready)
+ * @version 2.0.1 (Elementor & WP Production Ready)
  * @author https://github.com/suwahas
  * @license MIT
  */
@@ -177,8 +177,10 @@
     closest: function (sel) {
       const closestElements = new Set();
       this.each(function () {
+        let node = this;
+        if (node && node.nodeType === 3) node = node.parentNode;
         try {
-            const el = this.closest(sel);
+            const el = node.closest(sel);
             if (el) closestElements.add(el);
         } catch(e) {}
       });
@@ -212,8 +214,10 @@
     children: function (sel) {
       const kids = new Set();
       this.each(function () {
-        for (let i = 0; i < this.children.length; i++) {
-          kids.add(this.children[i]);
+        if (this.children) {
+          for (let i = 0; i < this.children.length; i++) {
+            kids.add(this.children[i]);
+          }
         }
       });
       
@@ -455,49 +459,51 @@
     addClass: function (classNames) {
       const classes = classNames.split(' ').filter(Boolean);
       return this.each(function () {
-        this.classList.add(...classes);
+        if (this.classList) this.classList.add(...classes);
       });
     },
 
     removeClass: function (classNames) {
       const classes = classNames.split(' ').filter(Boolean);
       return this.each(function () {
-        this.classList.remove(...classes);
+        if (this.classList) this.classList.remove(...classes);
       });
     },
 
     toggleClass: function (classNames) {
       const classes = classNames.split(' ').filter(Boolean);
       return this.each(function () {
-        classes.forEach(cls => this.classList.toggle(cls));
+        if (this.classList) classes.forEach(cls => this.classList.toggle(cls));
       });
     },
 
     hasClass: function (className) {
-      if (!this[0] || !className) return false;
+      if (!this[0] || !className || !this[0].classList) return false;
       return this[0].classList.contains(className);
     },
 
     attr: function (name, value) {
       if (typeof name === 'object') {
         return this.each(function () {
-          for (let key in name) {
-            this.setAttribute(key, name[key]);
+          if (this.setAttribute) {
+            for (let key in name) {
+              this.setAttribute(key, name[key]);
+            }
           }
         });
       }
       if (value === undefined) {
-        return this[0]?.getAttribute(name);
+        return this[0]?.getAttribute ? this[0].getAttribute(name) : undefined;
       }
       return this.each(function () {
-        this.setAttribute(name, value);
+        if (this.setAttribute) this.setAttribute(name, value);
       });
     },
 
     removeAttr: function(names) {
       const attrs = names.split(' ').filter(Boolean);
       return this.each(function() {
-        attrs.forEach(name => this.removeAttribute(name));
+        if (this.removeAttribute) attrs.forEach(name => this.removeAttribute(name));
       });
     },
 
