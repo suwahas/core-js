@@ -31,7 +31,7 @@ Core JS is not just another jQuery clone; it's a re-imagining of what a utility 
 | :--- | :--- | :--- | :--- |
 | **Core Philosophy** | **Convenience Wrapper** | **Normalization Layer** | Core JS enhances standard APIs, while jQuery had to create its own to hide browser flaws. |
 | **Performance** | **Extremely High** | **Good, but with overhead** | Core JS maps directly to fast, native browser functions and uses advanced techniques like **`DocumentFragment` batching** for DOM updates, making it significantly faster for list rendering. |
-| **Size** | **Tiny (~10 KB)** | **Large (~85 KB)** | Faster page loads, less JavaScript to parse and execute. |
+| **Size** | **Tiny (~15.9 KB)** | **Large (~85 KB)** | Faster page loads, less JavaScript to parse and execute. |
 | **Event System** | Native `addEventListener` & `CustomEvent` | Proprietary Synthetic Events | Core JS events are standard and **interoperable** with any other JS code or framework. |
 | **Async** | **Promise-first (native)** | `Deferred` objects (historically) | Core JS aligns perfectly with modern `async/await` syntax and native Promises. |
 | **Transparency** | **High** | **Low ("Magic")** | The Core JS source is simple, readable, and easy to debug, making it a great learning tool. |
