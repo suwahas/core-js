@@ -3,7 +3,7 @@
  * A lightweight, modern, and dependency-free JavaScript library that provides
  * a familiar jQuery-like API for DOM manipulation, events, and AJAX.
  *
- * @version 2.0.1 (Elementor & WP Production Ready)
+ * @version 2.1.0 (Enterprise Upgraded)
  * @author https://github.com/suwahas
  * @license MIT
  */
@@ -34,6 +34,49 @@
     return result;
   }
 
+  function _measure(elem, callback) {
+    // Fast path: if it has client rects, it's visible. No need to manipulate DOM.
+    if (elem.getClientRects().length > 0) return callback.call(elem);
+    
+    const hiddenParents = [];
+    let current = elem;
+    
+    // Traverse upwards to find and temporarily reveal hidden ancestors
+    while (current && current.nodeType === 1 && current.tagName !== 'BODY') {
+      if (getComputedStyle(current).display === 'none') {
+        hiddenParents.push({ el: current, old: current.style.display });
+        current.style.setProperty('display', 'block', 'important');
+      }
+      current = current.parentElement;
+    }
+    
+    // Apply standard swap to the element itself to prevent layout shifting
+    const result = _swap(elem, { display: 'block', position: 'absolute', visibility: 'hidden' }, callback);
+    
+    // Restore ancestors exactly as they were
+    hiddenParents.forEach(p => {
+      if (p.old) p.el.style.setProperty('display', p.old);
+      else p.el.style.removeProperty('display');
+    });
+    
+    return result;
+  }
+
+  function _cloneEventsAndData(orig, clone) {
+    const data = dataStore.get(orig);
+    if (data) dataStore.set(clone, J.extend(true, {}, data));
+
+    const events = eventStore.get(orig);
+    if (events) {
+      events.forEach((handlers, type) => {
+        handlers.forEach(h => {
+          const ns = h.namespaces.length ? '.' + h.namespaces.join('.') : '';
+          J(clone).on(type + ns, h.original);
+        });
+      });
+    }
+  }
+
   const wrapMap = {
     option: [1, '<select multiple="multiple">', '</select>'],
     thead: [1, '<table>', '</table>'],
@@ -57,6 +100,15 @@
 
       const template = document.createElement('template');
       template.innerHTML = wrap[1] + html + wrap[2];
+
+      // DOMEval: Recreate scripts so they execute upon DOM insertion
+      const scripts = template.content.querySelectorAll('script');
+      scripts.forEach(oldScript => {
+        const newScript = document.createElement('script');
+        Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+        newScript.text = oldScript.innerHTML;
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+      });
 
       // Traverse down to the actual content
       let node = template.content;
@@ -159,6 +211,33 @@
 
     // --- DOM TRAVERSAL ---
 
+    filter: function (selector) {
+      if (!selector) return J([]);
+      
+      if (typeof selector === 'function') {
+        const result = [];
+        this.each(function(i) {
+          if (selector.call(this, i, this)) result.push(this);
+        });
+        return J(result);
+      }
+      
+      if (typeof selector === 'string') {
+        const result = [];
+        this.each(function() {
+          if (this.nodeType === 1 && this.matches(selector)) result.push(this);
+        });
+        return J(result);
+      }
+      
+      const target = selector instanceof J ? Array.from(selector) : (selector.nodeType ? [selector] : []);
+      const result = [];
+      this.each(function() {
+        if (target.includes(this)) result.push(this);
+      });
+      return J(result);
+    },
+
     find: function (sel) {
       const foundSet = new Set();
       this.each(function () {
@@ -202,32 +281,23 @@
       this.each(function() {
         let parent = this.parentElement;
         while (parent) {
-          if (!sel || parent.matches(sel)) {
-            parents.add(parent);
-          }
+          parents.add(parent);
           parent = parent.parentElement;
         }
       });
-      return J(Array.from(parents));
+      const result = J(Array.from(parents));
+      return sel ? result.filter(sel) : result;
     },
 
     children: function (sel) {
       const kids = new Set();
       this.each(function () {
         if (this.children) {
-          for (let i = 0; i < this.children.length; i++) {
-            kids.add(this.children[i]);
-          }
+          for (let i = 0; i < this.children.length; i++) kids.add(this.children[i]);
         }
       });
-      
-      let result = Array.from(kids);
-      if (sel) {
-        try {
-            result = result.filter(kid => kid.matches(sel));
-        } catch(e) {}
-      }
-      return J(_uniqueSort(result));
+      const result = J(_uniqueSort(kids));
+      return sel ? result.filter(sel) : result;
     },
 
     siblings: function(sel) {
@@ -235,37 +305,32 @@
       this.each(function() {
         if (this.parentNode) {
           for (const child of this.parentNode.children) {
-            if (child !== this) {
-               if (!sel || child.matches(sel)) {
-                 siblings.add(child);
-               }
-            }
+            if (child !== this) siblings.add(child);
           }
         }
       });
-      return J(_uniqueSort(siblings));
+      const result = J(_uniqueSort(siblings));
+      return sel ? result.filter(sel) : result;
     },
 
     prev: function(sel) {
       const res = new Set();
       this.each(function() {
         const prev = this.previousElementSibling;
-        if (prev && (!sel || prev.matches(sel))) {
-          res.add(prev);
-        }
+        if (prev) res.add(prev);
       });
-      return J(Array.from(res));
+      const result = J(Array.from(res));
+      return sel ? result.filter(sel) : result;
     },
 
     next: function(sel) {
       const res = new Set();
       this.each(function() {
         const next = this.nextElementSibling;
-        if (next && (!sel || next.matches(sel))) {
-          res.add(next);
-        }
+        if (next) res.add(next);
       });
-      return J(Array.from(res));
+      const result = J(Array.from(res));
+      return sel ? result.filter(sel) : result;
     },
 
     eq: function(index) {
@@ -409,7 +474,8 @@
             const rec = handlers[i];
             // Match Namespaces (if provided) AND Handler (if provided)
             const nsMatch = namespaces.length === 0 || namespaces.every(ns => rec.namespaces.includes(ns));
-            const handlerMatch = !handler || rec.original === handler;
+            // Allow wrappers (like compat layer) to expose the original function via _original
+            const handlerMatch = !handler || rec.original === handler || rec.original._original === handler;
 
             if (nsMatch && handlerMatch) {
               removeHandler(type, rec, i, handlers);
@@ -423,7 +489,9 @@
     },
 
     trigger: function (eventType, data) {
-      const type = eventType.split('.')[0];
+      const parts = eventType.split('.');
+      const type = parts[0];
+      const hasNamespace = parts.length > 1;
 
       return this.each(function () {
         // Forms require special handling: calling this.submit() does NOT fire a native 
@@ -431,9 +499,9 @@
         const isSilentNativeMethod = (type === 'submit' || type === 'reset') && this.tagName === 'FORM';
         const isStandardAction = /^(click|focus|blur)$/.test(type);
 
-        // If no custom data is passed, and it's a standard UI action, calling the native 
-        // method directly guarantees listeners fire exactly once AND the default action occurs.
-        if (data === undefined && isStandardAction && typeof this[type] === 'function') {
+        // ONLY fire native methods if there is NO namespace!
+        // This prevents .trigger('click.custom') from actually clicking a checkbox.
+        if (!hasNamespace && data === undefined && isStandardAction && typeof this[type] === 'function') {
           try { this[type](); } catch (e) {}
           return;
         }
@@ -448,7 +516,7 @@
         this.dispatchEvent(event);
 
         // Execute silent native methods (like form submission) if the event wasn't prevented
-        if (!event.defaultPrevented && isSilentNativeMethod && typeof this[type] === 'function') {
+        if (!hasNamespace && !event.defaultPrevented && isSilentNativeMethod && typeof this[type] === 'function') {
           try { this[type](); } catch (e) {}
         }
       });
@@ -580,10 +648,19 @@
       });
     },
 
-    clone: function() {
+    clone: function(deepEventsAndData) {
       const clonedElements = [];
       this.each(function() {
-        clonedElements.push(this.cloneNode(true));
+        const clone = this.cloneNode(true);
+        if (deepEventsAndData) {
+          _cloneEventsAndData(this, clone);
+          const origChildren = this.querySelectorAll('*');
+          const cloneChildren = clone.querySelectorAll('*');
+          for (let i = 0; i < origChildren.length; i++) {
+            _cloneEventsAndData(origChildren[i], cloneChildren[i]);
+          }
+        }
+        clonedElements.push(clone);
       });
       return J(clonedElements);
     },
@@ -704,12 +781,23 @@
       });
     },
 
+    removeData: function(key) {
+      return this.each(function() {
+        const elementData = dataStore.get(this);
+        if (elementData) {
+          if (key) delete elementData[key];
+          else dataStore.delete(this);
+        }
+      });
+    },
+
     html: function (value) {
       if (value === undefined) {
         return this[0]?.innerHTML;
       }
       return this.each(function () {
-        this.innerHTML = value;
+        this.innerHTML = '';
+        J(this).append(value); // Uses _createNodesFromContent to execute scripts
       });
     },
 
@@ -765,9 +853,7 @@
             (parseFloat(style.borderLeftWidth) || 0) - (parseFloat(style.borderRightWidth) || 0);
         };
         
-        return el.offsetWidth === 0 && getComputedStyle(el).display === 'none' 
-          ? _swap(el, { display: 'block', position: 'absolute', visibility: 'hidden' }, getWidth)
-          : getWidth();
+        return _measure(el, getWidth);
       }
       return this.css('width', value);
     },
@@ -786,9 +872,7 @@
             (parseFloat(style.borderTopWidth) || 0) - (parseFloat(style.borderBottomWidth) || 0);
         };
 
-        return el.offsetHeight === 0 && getComputedStyle(el).display === 'none'
-          ? _swap(el, { display: 'block', position: 'absolute', visibility: 'hidden' }, getHeight)
-          : getHeight();
+        return _measure(el, getHeight);
       }
       return this.css('height', value);
     },
@@ -804,9 +888,7 @@
         return rectWidth + (parseFloat(style.marginLeft) || 0) + (parseFloat(style.marginRight) || 0);
       };
 
-      return el.offsetWidth === 0 && getComputedStyle(el).display === 'none'
-        ? _swap(el, { display: 'block', position: 'absolute', visibility: 'hidden' }, getOuterWidth)
-        : getOuterWidth();
+      return _measure(el, getOuterWidth);
     },
 
     outerHeight: function(includeMargin) {
@@ -820,9 +902,7 @@
         return rectHeight + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
       };
 
-      return el.offsetHeight === 0 && getComputedStyle(el).display === 'none'
-        ? _swap(el, { display: 'block', position: 'absolute', visibility: 'hidden' }, getOuterHeight)
-        : getOuterHeight();
+      return _measure(el, getOuterHeight);
     },
 
     offset: function() {
@@ -891,9 +971,49 @@
     }
   };
 
+  // --- PROTOTYPE EXTENSION ---
+  J.fn.extend = function(obj) {
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        J.fn[key] = obj[key];
+      }
+    }
+    return this;
+  };
+
   J.fn.init.prototype = J.fn;
 
   // --- STATIC METHODS ---
+
+  // --- PLUGIN FACTORY ---
+  J.plugin = function(name, PluginClass) {
+    J.fn[name] = function(optionsOrMethod, ...args) {
+      let returnValue = this; // Default to chaining
+      
+      this.each(function() {
+        let instance = J(this).data(name);
+        
+        if (typeof optionsOrMethod === 'string') {
+          // Method Invocation
+          if (!instance) return; // Silent fail if not initialized
+          
+          // Protect private methods (starting with '_') and ensure method exists
+          if (typeof instance[optionsOrMethod] === 'function' && !optionsOrMethod.startsWith('_')) {
+            const result = instance[optionsOrMethod](...args);
+            // If the method returns a value, break chaining and return the value
+            if (result !== undefined) returnValue = result;
+          } else {
+            console.warn(`J.${name}: Method '${optionsOrMethod}' does not exist or is private.`);
+          }
+        } else if (!instance) {
+          // Initialization: Store instance securely in Core's WeakMap
+          J(this).data(name, new PluginClass(this, optionsOrMethod));
+        }
+      });
+      
+      return returnValue;
+    };
+  };
   
   J.extend = function() {
     let target = arguments[0] || {};
@@ -1034,7 +1154,19 @@
       }
       if (timeout > 0) xhr.timeout = timeout;
 
-      try { beforeSend.call(context, xhr); } catch (e) { console.warn('beforeSend hook error:', e); }
+      let cancelRequest = false;
+      try { 
+        if (beforeSend.call(context, xhr) === false) cancelRequest = true; 
+      } catch (e) { console.warn('beforeSend hook error:', e); }
+
+      // jQuery Compat: Abort request immediately if beforeSend returns exactly false
+      if (cancelRequest) {
+        const err = new Error('Request aborted');
+        error.call(context, xhr, 'abort', err.message);
+        reject(err);
+        complete.call(context, xhr, 'abort');
+        return;
+      }
 
       xhr.onload = () => {
         const isSuccess = xhr.status >= 200 && xhr.status < 400;
@@ -1068,6 +1200,12 @@
         error.call(context, xhr, 'timeout', err.message);
         reject(err);
         complete.call(context, xhr, 'timeout');
+      };
+      xhr.onabort = () => {
+        const err = new Error('Request aborted');
+        error.call(context, xhr, 'abort', err.message);
+        reject(err);
+        complete.call(context, xhr, 'abort');
       };
       xhr.send(sendData);
     });
